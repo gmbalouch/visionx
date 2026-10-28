@@ -22,24 +22,48 @@ def load_kb():
     with open("knowledge.json", encoding="utf-8") as f:
         return json.load(f)
 
-@st.cache_data(show_spinner=False)
+@st.cache_resource
+def _ai_cache():
+    return {}   # remembers only successful answers
+
+GEMINI_MODELS = [
+    "gemini-3.5-flash-lite",
+    "gemini-3.1-flash-lite",
+    "gemini-3.7-flash",
+    "gemini-3.8-flash",
+]
+
 def explain_with_ai(name):
-    """Optional stretch feature. Works only if ANTHROPIC_API_KEY is set."""
-    key = os.environ.get("ANTHROPIC_API_KEY")
+    """Returns text on success, or None if AI is unavailable."""
+    cache = _ai_cache()
+    if name in cache:
+        return cache[name]
+
+    key = os.environ.get("GEMINI_API_KEY")
     if not key:
-        return "AI explanation is not enabled (no API key set)."
+        return None
     try:
-        from anthropic import Anthropic
-        client = Anthropic(api_key=key)
-        msg = client.messages.create(
-            model="claude-haiku-5-5",
-            max_tokens=200,
-            messages=[{"role": "user",
-                       "content": f"Explain what a '{name}' is in 2 simple sentences for a student."}],
-        )
-        return msg.content[0].text
+        from google import genai
+        client = genai.Client(api_key=key)
     except Exception as e:
-        return f"AI explanation unavailable: {e}"
+        print("Gemini setup error:", e)
+        return None
+
+    prompt = f"Explain what a '{name}' is in 2 simple sentences for a student."
+    for model_id in GEMINI_MODELS:
+        for attempt in range(2):
+            try:
+                resp = client.models.generate_content(model=model_id, contents=prompt)
+                cache[name] = resp.text
+                return resp.text
+            except Exception as e:
+                print(f"{model_id} failed: {e}")   # shows in your terminal
+                msg = str(e)
+                if "503" in msg or "429" in msg or "UNAVAILABLE" in msg:
+                    time.sleep(1.5)   # busy: retry once, then next model
+                    continue
+                break                 # 404 etc: skip to the next model
+    return None
 
 # ---------- Sidebar ----------
 model_name = st.sidebar.selectbox("Model", ["yolo11n.pt", "yolo11s.pt"])
@@ -110,4 +134,9 @@ else:
 
                 if st.button("Explain with AI"):
                     with st.spinner("Thinking..."):
-                        st.info(explain_with_ai(name))
+                        answer = explain_with_ai(name)
+                    if answer:
+                        st.info(answer)
+                    else:
+                        st.warning("AI is busy right now. Showing the built-in description instead.")
+                        st.info(info["description"])
