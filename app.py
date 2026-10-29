@@ -1,13 +1,15 @@
-import sys
-print("PYTHON USED:", sys.executable)
-
 import json
 import os
 import time
 import cv2
 import numpy as np
+import av
 import streamlit as st
 from ultralytics import YOLO
+from streamlit_webrtc import webrtc_streamer, RTCConfiguration
+
+RTC_CONFIG = RTCConfiguration({"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]})
+LOCAL = os.environ.get("VISIONX_LOCAL") == "1"
 
 st.set_page_config(page_title="VisionX", layout="wide")
 st.title("VisionX: AI Visual Assistant")
@@ -24,7 +26,7 @@ def load_kb():
 
 @st.cache_resource
 def _ai_cache():
-    return {}   # remembers only successful answers
+    return {}
 
 GEMINI_MODELS = [
     "gemini-3.5-flash-lite",
@@ -33,13 +35,20 @@ GEMINI_MODELS = [
     "gemini-3.8-flash",
 ]
 
+def get_key():
+    key = os.environ.get("GEMINI_API_KEY")
+    if key:
+        return key
+    try:
+        return st.secrets["GEMINI_API_KEY"]
+    except Exception:
+        return None
+
 def explain_with_ai(name):
-    """Returns text on success, or None if AI is unavailable."""
     cache = _ai_cache()
     if name in cache:
         return cache[name]
-
-    key = os.environ.get("GEMINI_API_KEY")
+    key = get_key()
     if not key:
         return None
     try:
@@ -48,7 +57,6 @@ def explain_with_ai(name):
     except Exception as e:
         print("Gemini setup error:", e)
         return None
-
     prompt = f"Explain what a '{name}' is in 2 simple sentences for a student."
     for model_id in GEMINI_MODELS:
         for attempt in range(2):
@@ -57,18 +65,20 @@ def explain_with_ai(name):
                 cache[name] = resp.text
                 return resp.text
             except Exception as e:
-                print(f"{model_id} failed: {e}")   # shows in your terminal
+                print(f"{model_id} failed: {e}")
                 msg = str(e)
                 if "503" in msg or "429" in msg or "UNAVAILABLE" in msg:
-                    time.sleep(1.5)   # busy: retry once, then next model
+                    time.sleep(1.5)
                     continue
-                break                 # 404 etc: skip to the next model
+                break
     return None
 
 # ---------- Sidebar ----------
-model_name = st.sidebar.selectbox("Model", ["yolo11n.pt", "yolo11s.pt"])
+model_name = st.sidebar.selectbox("Model", ["yolo11n.pt", "yolo11s.pt"] if LOCAL else ["yolo11n.pt"])
 conf = st.sidebar.slider("Confidence threshold", 0.1, 0.9, 0.4, 0.05)
-mode = st.sidebar.radio("Mode", ["Live detection", "Inspect snapshot"])
+modes = ["Live detection", "Live (browser camera)", "Inspect snapshot"] if LOCAL \
+    else ["Live (browser camera)", "Inspect snapshot"]
+mode = st.sidebar.radio("Mode", modes)
 
 model = load_model(model_name)
 kb = load_kb()
@@ -83,7 +93,7 @@ def detect(frame_bgr):
             for c, p in zip(result.boxes.cls, result.boxes.conf)]
     return result.plot(), dets
 
-# ---------- MODE 1: live camera ----------
+# ---------- MODE 1: live camera (local laptop only) ----------
 if mode == "Live detection":
     run = st.checkbox("Start camera")
     col1, col2 = st.columns([3, 1])
@@ -102,7 +112,6 @@ if mode == "Live detection":
             cv2.putText(annotated, f"FPS: {fps:.1f}", (10, 30),
                         cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
             frame_box.image(annotated[:, :, ::-1], channels="RGB")
-
             seen = sorted({n for n, _ in dets})
             text = "### Detected\n" + "\n".join(
                 f"- **{n}** ({get_info(n)['category']}): {get_info(n)['description']}"
@@ -110,7 +119,22 @@ if mode == "Live detection":
             info_box.markdown(text if seen else "### Detected\nNothing yet")
         cap.release()
 
-# ---------- MODE 2: snapshot + select + info ----------
+# ---------- MODE 2: live camera through the browser (works online) ----------
+elif mode == "Live (browser camera)":
+    def video_callback(frame):
+        img = frame.to_ndarray(format="bgr24")
+        result = model(img, conf=conf, imgsz=320, verbose=False)[0]
+        return av.VideoFrame.from_ndarray(result.plot(), format="bgr24")
+
+    webrtc_streamer(
+        key="visionx-live",
+        video_frame_callback=video_callback,
+        rtc_configuration=RTC_CONFIG,
+        media_stream_constraints={"video": True, "audio": False},
+        async_processing=True,
+    )
+
+# ---------- MODE 3: snapshot + select + info ----------
 else:
     img = st.camera_input("Take a picture")
     if img:
