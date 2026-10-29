@@ -121,16 +121,22 @@ if mode == "Live detection":
 
 # ---------- MODE 2: live camera through the browser (works online) ----------
 elif mode == "Live (browser camera)":
+    cam = st.radio("Camera", ["Front camera", "Back camera"], horizontal=True)
+    facing = "user" if cam == "Front camera" else "environment"
+
     def video_callback(frame):
         img = frame.to_ndarray(format="bgr24")
         result = model(img, conf=conf, imgsz=320, verbose=False)[0]
         return av.VideoFrame.from_ndarray(result.plot(), format="bgr24")
 
     webrtc_streamer(
-        key="visionx-live",
+        key=f"visionx-live-{facing}",
         video_frame_callback=video_callback,
         rtc_configuration=RTC_CONFIG,
-        media_stream_constraints={"video": True, "audio": False},
+        media_stream_constraints={
+            "video": {"facingMode": {"ideal": facing}},
+            "audio": False,
+        },
         async_processing=True,
     )
 
