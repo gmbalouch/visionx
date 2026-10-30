@@ -102,7 +102,7 @@ def explain_with_ai(name):
 model_name = st.sidebar.selectbox("Model", ["yolo11n.pt", "yolo11s.pt"] if LOCAL else ["yolo11n.pt"])
 conf = st.sidebar.slider("Confidence threshold", 0.1, 0.9, 0.4, 0.05)
 modes = ["Live detection", "Live (browser camera)", "Inspect snapshot"] if LOCAL \
-    else ["Live (browser camera)", "Inspect snapshot"]
+    else ["Live (browser camera)", "Inspect snapshot", "About"]
 mode = st.sidebar.radio("Mode", modes)
 
 model = load_model(model_name)
@@ -169,6 +169,109 @@ elif mode == "Live (browser camera)":
         },
         async_processing=True,
     )
+
+# ---------- ABOUT PAGE ----------
+elif mode == "About":
+    # EDIT THESE: replace with your real names and roles
+    TEAM = [
+        ("Ghulam Mustafa", "Software Engineering / 23SW086"),
+        ("Member 2", "Team member / role"),
+        ("Member 3", "Team member / role"),
+        ("Member 3", "Team member / role"),
+    ]
+
+    st.header("About VisionX")
+    t1, t2, t3, t4, t5 = st.tabs(
+        ["Overview", "How it works", "Dataset", "Team and internship", "Limits and future work"]
+    )
+
+    with t1:
+        st.subheader("Problem")
+        st.write(
+            "Most computer vision demos only draw boxes around objects. They do not tell "
+            "the user anything useful about what the camera sees. VisionX combines "
+            "real-time object detection with an interactive information layer."
+        )
+        st.subheader("What it does")
+        st.markdown(
+            "- Detects objects live through a webcam or phone camera (front and back)\n"
+            "- Shows bounding boxes, labels and confidence scores\n"
+            "- Lets the user select a detected object and read its category and description\n"
+            "- Generates a short AI explanation of the selected object (Gemini API)\n"
+            "- Runs as a web app, so it works on laptops and phones through a link"
+        )
+
+    with t2:
+        st.subheader("Pipeline")
+        st.markdown(
+            "1. **Camera** (browser camera via WebRTC, or OpenCV locally)\n"
+            "2. **YOLO11 nano** detects objects in each frame\n"
+            "3. **Post-processing** keeps boxes above the confidence threshold\n"
+            "4. **Knowledge base** (JSON) maps each class to a category and description\n"
+            "5. **AI explanation** (Gemini, with model fallback and caching)\n"
+            "6. **Streamlit interface** shows the video, results and information"
+        )
+        st.subheader("Technology")
+        st.table({
+            "Part": ["Language", "Detection", "Vision", "Interface", "Live video", "AI text", "Hosting"],
+            "Tool": ["Python", "Ultralytics YOLO11 (PyTorch)", "OpenCV, NumPy", "Streamlit",
+                     "streamlit-webrtc (with a TURN relay)", "Google Gemini API",
+                     "Streamlit Community Cloud + GitHub"],
+        })
+
+    with t3:
+        st.subheader("COCO dataset")
+        st.write(
+            "The pre-trained model was trained on the COCO dataset (Common Objects in "
+            "Context, created by Microsoft). Its detection task has 80 object classes. "
+            "The model can only recognise these classes, so anything else gets mapped to "
+            "the closest known class."
+        )
+        names = model.names
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Classes in the model", len(names))
+        c2.metric("Entries in our knowledge base", sum(1 for n in names.values() if n in kb))
+        c3.metric("Model in use", model_name)
+        st.dataframe(
+            {
+                "ID": list(names.keys()),
+                "Class": list(names.values()),
+                "Category": [get_info(n)["category"] for n in names.values()],
+                "Description": [get_info(n)["description"] for n in names.values()],
+            },
+            use_container_width=True,
+            height=2900,
+        )
+
+    with t4:
+        st.subheader("Internship")
+        st.write(
+            "VisionX was developed as the project for the Catch VR one-month internship, "
+            "where each team studied and extended an AI or VR open-source project. "
+            "We studied Ultralytics YOLO and built an interactive assistant on top of it."
+        )
+        st.subheader("Team")
+        st.table({"Name": [m[0] for m in TEAM], "Department/Rollno": [m[1] for m in TEAM]})
+        st.caption("Built on the open-source Ultralytics YOLO project: github.com/ultralytics/ultralytics")
+
+    with t5:
+        st.subheader("Limitations")
+        st.markdown(
+            "- Only 80 COCO classes: unknown objects (for example glasses or pens) are "
+            "matched to the closest known class and can be wrong\n"
+            "- The nano model is fast but less accurate than larger models\n"
+            "- Free hosting runs on CPU, so online live video has a low frame rate\n"
+            "- The AI explanation can contain mistakes and needs internet"
+        )
+        st.subheader("Future work")
+        st.markdown(
+            "- Open-vocabulary detection (YOLO-World) or custom training for new objects\n"
+            "- Native mobile app (on-device model export)\n"
+            "- AR/VR display of detected objects and their information (Unity or A-Frame)\n"
+            "- Multi-language descriptions and voice output for accessibility"
+        )
+
+
 # ---------- MODE 3: snapshot + select + info ----------
 else:
     img = st.camera_input("Take a picture")
