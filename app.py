@@ -158,13 +158,15 @@ elif mode == "Live (browser camera)":
         key=f"visionx-live-{facing}",
         video_frame_callback=video_callback,
         rtc_configuration=RTC_CONFIG,
+        server_rtc_configuration=RTCConfiguration(
+            {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
+        ),
         media_stream_constraints={
             "video": {"facingMode": {"ideal": facing}},
             "audio": False,
         },
         async_processing=True,
     )
-
 # ---------- MODE 3: snapshot + select + info ----------
 else:
     img = st.camera_input("Take a picture")
