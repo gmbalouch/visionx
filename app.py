@@ -8,7 +8,32 @@ import streamlit as st
 from ultralytics import YOLO
 from streamlit_webrtc import webrtc_streamer, RTCConfiguration
 
-RTC_CONFIG = RTCConfiguration({"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]})
+def get_secret(name):
+    val = os.environ.get(name)
+    if val:
+        return val
+    try:
+        return st.secrets[name]
+    except Exception:
+        return None
+
+def build_rtc_config():
+    servers = [{"urls": ["stun:stun.l.google.com:19302"]}]
+    user, pwd = get_secret("TURN_USERNAME"), get_secret("TURN_PASSWORD")
+    if user and pwd:
+        servers += [
+            {"urls": ["stun:stun.relay.metered.ca:80"]},
+            {"urls": ["turn:global.relay.metered.ca:80",
+                      "turn:global.relay.metered.ca:80?transport=tcp",
+                      "turn:global.relay.metered.ca:443",
+                      "turns:global.relay.metered.ca:443?transport=tcp"],
+             "username": user, "credential": pwd},
+        ]
+    return RTCConfiguration({"iceServers": servers})
+
+RTC_CONFIG = build_rtc_config()
+
+
 LOCAL = os.environ.get("VISIONX_LOCAL") == "1"
 
 st.set_page_config(page_title="VisionX", layout="wide")
