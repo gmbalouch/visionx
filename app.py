@@ -147,7 +147,9 @@ if mode == "Live detection":
 # ---------- MODE 2: live camera through the browser (works online) ----------
 elif mode == "Live (browser camera)":
     cam = st.radio("Camera", ["Front camera", "Back camera"], horizontal=True)
+    st.caption("To switch cameras: press STOP first, change the option, then press START.")
     facing = "user" if cam == "Front camera" else "environment"
+    facing_constraint = {"ideal": "user"} if cam == "Front camera" else {"exact": "environment"}
 
     def video_callback(frame):
         img = frame.to_ndarray(format="bgr24")
@@ -162,7 +164,7 @@ elif mode == "Live (browser camera)":
             {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
         ),
         media_stream_constraints={
-            "video": {"facingMode": {"ideal": facing}},
+            "video": {"facingMode": facing_constraint},
             "audio": False,
         },
         async_processing=True,
