@@ -174,10 +174,10 @@ elif mode == "Live (browser camera)":
 elif mode == "About":
     # EDIT THESE: replace with your real names and roles
     TEAM = [
+        ("Eesha Kumari", "Computer Systems Engineering  / 23BSCS055"),
+        ("Hasnain Memon", "Computer Systems Engineering / 24CS071"),
+        ("Aqsa Mehak", "Computer Systems Engineering  / 23CS124"),
         ("Ghulam Mustafa", "Software Engineering / 23SW086"),
-        ("Member 2", "Team member / role"),
-        ("Member 3", "Team member / role"),
-        ("Member 3", "Team member / role"),
     ]
 
     st.header("About VisionX")
